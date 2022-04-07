@@ -9,13 +9,15 @@ from flask_cors import CORS
 import web_config
 import requests, time
 from werkzeug.security import generate_password_hash, check_password_hash
+from urllib.parse import quote
 
 db = SQLAlchemy()
 app = Flask(__name__)
 CORS(app)
 auth = HTTPBasicAuth()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pymssql://{web_config.production().username}:{web_config.production().password}@{web_config.production().server}/{web_config.production().database}"
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pymssql://{web_config.production().username}:{quote(web_config.production().password)}@{web_config.production().server}/{web_config.production().database}"
+print(f"mssql+pymssql://{web_config.production().username}:{quote(web_config.production().password)}@{web_config.production().server}/{web_config.production().database}")
 db.init_app(app)
 
 
@@ -41,7 +43,7 @@ def unauthorized():
 def getMatchEntryInfo(DateBetween=None,TournamentText = None, SourceCode = None ,EventCode = None):
     try:
         if request.method == 'GET' and not EventCode is None:
-            sql = f"select * from MatchEntry " \
+            sql = f"select MatchEntry.EventCode,MatchEntry.TournamentText,MatchEntry.MatchTime,MatchEntry.SourceCode,MatchEntry.HomeTeam,MatchEntry.AwayTeam,MatchEntry.CollectedTime,GroupOptionCode,OptionCode,OptionRate,SpecialBetValue  from MatchEntry " \
                   f"left join Odds on MatchEntry.EventCode = Odds.EventCode " \
                   f"where MatchEntry.EventCode = '{EventCode}' and MatchEntry.MatchTime >= '{datetime.now().strftime('%Y-%m-%d %H:%M:%S.000')}' "
             MatchEntry = db.engine.execute(sql).mappings().all()
@@ -59,7 +61,7 @@ def getMatchEntryInfo(DateBetween=None,TournamentText = None, SourceCode = None 
                                                     SourceCode=MatchEntry['SourceCode'],
                                                     HomeTeam=[MatchEntry['HomeTeam'],TeamNameCorrection(MatchEntry['HomeTeam'])],
                                                     AwayTeam=[MatchEntry['AwayTeam'],TeamNameCorrection(MatchEntry['AwayTeam'])],
-                                                    odds=MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records'),
+                                                    odds= [] if MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records')[0]['GroupOptionCode']==None else MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records'),
                                                     CollectedTime=MatchEntry['CollectedTime'].strftime('%Y-%m-%d %H:%M:%S.000')))
                     records.append(MatchEntry['EventCode'])
             return jsonify({'response': MatchEntrysOutput})
@@ -69,7 +71,7 @@ def getMatchEntryInfo(DateBetween=None,TournamentText = None, SourceCode = None 
             else:
                 DatetimeTop, DatetimeBottom = datetime.now().strftime('%Y-%m-%d %H:%M:%S.000'),DateBetween.split('~')[1].strip()+' 23:59:59.000'
             # 查詢賽事
-            sql = f"Select * from MatchEntry " \
+            sql = f"Select MatchEntry.EventCode,MatchEntry.TournamentText,MatchEntry.MatchTime,MatchEntry.SourceCode,MatchEntry.HomeTeam,MatchEntry.AwayTeam,MatchEntry.CollectedTime,GroupOptionCode,OptionCode,OptionRate,SpecialBetValue  from MatchEntry " \
                   f"left join Odds on MatchEntry.EventCode = Odds.EventCode where Matchtime >= '{DatetimeTop}' and  Matchtime <= '{DatetimeBottom}' " \
                   f"order by Matchtime,HomeTeam,AwayTeam,MatchEntry.SourceCode desc"
             MatchEntrys = db.engine.execute(sql).mappings().all()
@@ -87,17 +89,17 @@ def getMatchEntryInfo(DateBetween=None,TournamentText = None, SourceCode = None 
                                                     SourceCode=MatchEntry['SourceCode'],
                                                     HomeTeam=[MatchEntry['HomeTeam'],TeamNameCorrection(MatchEntry['HomeTeam'])],
                                                     AwayTeam=[MatchEntry['AwayTeam'],TeamNameCorrection(MatchEntry['AwayTeam'])],
-                                                    odds=MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records'),
+                                                    odds= [] if MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records')[0]['GroupOptionCode']==None else MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records'),
                                                     CollectedTime=MatchEntry['CollectedTime'].strftime('%Y-%m-%d %H:%M:%S.000')))
                     records.append(MatchEntry['EventCode'])
             return jsonify({'response': MatchEntrysOutput})
         elif request.method == 'GET' and not TournamentText is None:
             if DateBetween == 'any':
-                DatetimeTop, DatetimeBottom = datetime.now().strftime('%Y-%m-%d %H:%M:%S.000'), (datetime.now() + timedelta(days=7)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S.000')
+                DatetimeTop, DatetimeBottom = datetime.now().strftime('%Y-%m-%d %H:%M:%S.000'), (datetime.now() + timedelta(days=3)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S.000')
             else:
                 DatetimeTop, DatetimeBottom = datetime.now().strftime('%Y-%m-%d %H:%M:%S.000'),DateBetween.split('~')[1].strip()+' 23:59:59.000'
             # 查詢賽事
-            sql = f"Select * from MatchEntry " \
+            sql = f"Select MatchEntry.EventCode,MatchEntry.TournamentText,MatchEntry.MatchTime,MatchEntry.SourceCode,MatchEntry.HomeTeam,MatchEntry.AwayTeam,MatchEntry.CollectedTime,GroupOptionCode,OptionCode,OptionRate,SpecialBetValue  from MatchEntry " \
                   f"left join Odds on MatchEntry.EventCode = Odds.EventCode where Matchtime >= '{DatetimeTop}' and  Matchtime <= '{DatetimeBottom}' and TournamentText = '{TournamentText}' " \
                   f"order by Matchtime,HomeTeam,AwayTeam,MatchEntry.SourceCode desc"
             MatchEntrys = db.engine.execute(sql).mappings().all()
@@ -107,6 +109,7 @@ def getMatchEntryInfo(DateBetween=None,TournamentText = None, SourceCode = None 
             # 整理賽事
             MatchEntrysOutput = []
             records = []
+
             for MatchEntry in MatchEntrys:
                 if MatchEntry['EventCode'] not in records:
                     MatchEntrysOutput.append(dict(EventCode=MatchEntry['EventCode'],
@@ -115,7 +118,7 @@ def getMatchEntryInfo(DateBetween=None,TournamentText = None, SourceCode = None 
                                                     SourceCode=MatchEntry['SourceCode'],
                                                     HomeTeam=[MatchEntry['HomeTeam'],TeamNameCorrection(MatchEntry['HomeTeam'])],
                                                     AwayTeam=[MatchEntry['AwayTeam'],TeamNameCorrection(MatchEntry['AwayTeam'])],
-                                                    odds=MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records'),
+                                                    odds= [] if MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records')[0]['GroupOptionCode']==None else MatchEntry_df[MatchEntry_df.EventCode == MatchEntry['EventCode']].loc[:,['GroupOptionCode','OptionCode','OptionRate','SpecialBetValue']].to_dict('records'),
                                                     CollectedTime=MatchEntry['CollectedTime'].strftime('%Y-%m-%d %H:%M:%S.000')))
                     records.append(MatchEntry['EventCode'])
             return jsonify({'response': MatchEntrysOutput})
@@ -138,12 +141,14 @@ def PredictMatchEntry():
                 and not GroupOptionCode is None and not OptionCode is None  and not EventCode is None:
             MatchEntry = dict(db.engine.execute(f"select * from MatchEntry where EventCode = '{EventCode}' and MatchTime >= '{datetime.now().strftime('%Y-%m-%d %H:%M:%S.000')}'  ").mappings().one())
             Odds = dict(db.engine.execute(f"select * from Odds where EventCode = '{EventCode}' and GroupOptionCode='{GroupOptionCode}' and OptionCode='{OptionCode}' ").mappings().one())
-
-            if not isPredictMacthExists(get_UserId(account,password),EventCode,GroupOptionCode):
+            UserId = get_UserId(account,password)
+            if UserId is None:
+                return jsonify({'response':f'Account {account} does not exist.'})
+            if not isPredictMacthExists(UserId,EventCode,GroupOptionCode):
                 for gametype in GameType:
-                    predict_sql = f'''INSERT INTO [dbo].[PredictMatch] ([UserId],[SportCode],[EventType],[EventCode],[TournamentCode],[TournamentText],[GroupOptionCode],[GroupOptionName],[PredictTeam],[OptionCode],[SpecialBetValue],[OptionRate],[status],[gameType],[MarketType],[PredictDatetime],[CreatedTime]) VALUES('{get_UserId(account, password)}','{MatchEntry['SportCode']}', '{'0'}','{MatchEntry['EventCode']}', '{MatchEntry['SportTournamentCode']}','{MatchEntry['TournamentText']}','{Odds['GroupOptionCode']}','{get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])}','{Mapping_PredictTeamName(Odds['OptionCode'], MatchEntry['SportCode'], Odds['GroupOptionCode'], MatchEntry['HomeTeam'], MatchEntry['AwayTeam'])}','{Odds['OptionCode']}','{Odds['SpecialBetValue']}','{Odds['OptionRate']}','{'2'}','{gametype}','{"international" if MatchEntry['SourceCode'] == "Bet365" else "sportslottery"}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}') '''
+                    predict_sql = f'''INSERT INTO [dbo].[PredictMatch] ([UserId],[SportCode],[EventType],[EventCode],[TournamentCode],[TournamentText],[GroupOptionCode],[GroupOptionName],[PredictTeam],[OptionCode],[SpecialBetValue],[OptionRate],[status],[gameType],[MarketType],[PredictDatetime],[CreatedTime]) VALUES('{UserId}','{MatchEntry['SportCode']}', '{'0'}','{MatchEntry['EventCode']}', '{MatchEntry['SportTournamentCode']}','{MatchEntry['TournamentText']}','{Odds['GroupOptionCode']}','{get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])}','{Mapping_PredictTeamName(Odds['OptionCode'], MatchEntry['SportCode'], Odds['GroupOptionCode'], MatchEntry['HomeTeam'], MatchEntry['AwayTeam'])}','{Odds['OptionCode']}','{Odds['SpecialBetValue']}','{Odds['OptionRate']}','{'2'}','{gametype}','{"international" if MatchEntry['SourceCode'] == "Bet365" else "sportslottery"}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}') '''
                     db.engine.execute(predict_sql)
-                add_userbouns(get_UserId(account,password))
+                add_userbouns(UserId)
                 message = f"比賽資訊：\n" \
                           f"EventCode = {EventCode} \n" \
                           f"TournamentText = {MatchEntry['TournamentText']} \n" \
@@ -172,7 +177,7 @@ def Mapping_PredictTeamName(OptionCode,SportCode,GroupOptionCode,HomeTeam,AwayTe
             PredictTeam = texts[0]
         elif texts[0] == 'Draw' and not texts[1] == 'Draw':
             PredictTeam = texts[1]
-        return PredictTeam
+        return PredictTeam.replace(r"'", r"''")
     else:
         if OptionCode == '1':
             PredictTeam = HomeTeam
@@ -180,17 +185,21 @@ def Mapping_PredictTeamName(OptionCode,SportCode,GroupOptionCode,HomeTeam,AwayTe
             PredictTeam = AwayTeam
         else:
             PredictTeam = ''
-        return PredictTeam
+        return PredictTeam.replace(r"'", r"''")
 
 def get_GroupOptionName(SportCode, GroupOptionCode):
     result = dict(db.engine.execute(f"select * from [GroupOptionCode] where SportCode = '{SportCode}' and GroupOptionCode1 = '{GroupOptionCode}' ").mappings().one())
     return result['Type']
 
 def get_UserId(account,password):
-    result = dict(db.engine.execute(f"select * from UserMember where member = '{account}' and Password = '{password}' ").mappings().one())
-    return result['UserId']
+    try:
+        result = dict(db.engine.execute(f"select * from UserMember where member = '{account}' and Password = '{password}' ").mappings().one())
+        return result['UserId']
+    except:
+        return None
 
 def TeamNameCorrection(Eng_TeamName):
+    Eng_TeamName = Eng_TeamName.replace(r"'", r"''")
     sql = f"SELECT name FROM teams where team = '{Eng_TeamName}' ;"
     results = db.engine.execute(sql).mappings().all()
     if len(results)>0:
