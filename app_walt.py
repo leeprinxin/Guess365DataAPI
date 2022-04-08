@@ -147,6 +147,7 @@ def PredictMatchEntry():
         GroupOptionCode = request.form.get('GroupOptionCode')
         OptionCode = request.form.get('OptionCode')
         EventCode = request.form.get('EventCode')
+        predict_type = request.form.get('PredictType')
         GameType = ['Forecast','Selling']
         if request.method == 'POST' and not account is None and not password is None \
                 and not GroupOptionCode is None and not OptionCode is None  and not EventCode is None:
@@ -155,25 +156,65 @@ def PredictMatchEntry():
             UserId = get_UserId(account,password)
             if UserId is None:
                 return jsonify({'response':f'Account {account} does not exist.'})
-            if not isPredictMacthExists(UserId,EventCode,GroupOptionCode):
-                datetime_revised = datetime.now()+timedelta(hours=8)
-                for gametype in GameType:
-                    predict_sql = f'''INSERT INTO [dbo].[PredictMatch] ([UserId],[SportCode],[EventType],[EventCode],[TournamentCode],[TournamentText],[GroupOptionCode],[GroupOptionName],[PredictTeam],[OptionCode],[SpecialBetValue],[OptionRate],[status],[gameType],[MarketType],[PredictDatetime],[CreatedTime]) VALUES('{UserId}','{MatchEntry['SportCode']}', '{'0'}','{MatchEntry['EventCode']}', '{MatchEntry['SportTournamentCode']}','{MatchEntry['TournamentText']}','{Odds['GroupOptionCode']}','{get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])}','{Mapping_PredictTeamName(Odds['OptionCode'], MatchEntry['SportCode'], Odds['GroupOptionCode'], MatchEntry['HomeTeam'], MatchEntry['AwayTeam'])}','{Odds['OptionCode']}','{Odds['SpecialBetValue']}','{Odds['OptionRate']}','{'2'}','{gametype}','{"international" if MatchEntry['SourceCode'] == "Bet365" else "sportslottery"}','{datetime_revised.replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}','{datetime_revised.replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}') '''
+            if predict_type is None or  predict_type not in GameType:
+                return jsonify({'response':f"Predict type please enter 'Forecast' or 'Selling' option."})
+            if predict_type == 'Selling':
+                isForcast,Forecast_result = isPredictMacthExists(UserId,EventCode,GroupOptionCode,'Forecast')
+                isSelling,Selling_result = isPredictMacthExists(UserId,EventCode,GroupOptionCode,'Selling')
+                if not isForcast:
+                    for gametype in GameType:
+                        predict_sql = f'''INSERT INTO [dbo].[PredictMatch] ([UserId],[SportCode],[EventType],[EventCode],[TournamentCode],[TournamentText],[GroupOptionCode],[GroupOptionName],[PredictTeam],[OptionCode],[SpecialBetValue],[OptionRate],[status],[gameType],[MarketType],[PredictDatetime],[CreatedTime]) VALUES('{UserId}','{MatchEntry['SportCode']}', '{'0'}','{MatchEntry['EventCode']}', '{MatchEntry['SportTournamentCode']}','{MatchEntry['TournamentText']}','{Odds['GroupOptionCode']}','{get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])}','{Mapping_PredictTeamName(Odds['OptionCode'], MatchEntry['SportCode'], Odds['GroupOptionCode'], MatchEntry['HomeTeam'], MatchEntry['AwayTeam'])}','{Odds['OptionCode']}','{Odds['SpecialBetValue']}','{Odds['OptionRate']}','{'2'}','{gametype}','{"international" if MatchEntry['SourceCode'] == "Bet365" else "sportslottery"}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}') '''
+                        db.engine.execute(predict_sql)
+                    add_userbouns(UserId)
+                    message = f"比賽資訊：\n" \
+                              f"EventCode = {EventCode} \n" \
+                              f"TournamentText = {MatchEntry['TournamentText']} \n" \
+                              f"{MatchEntry['HomeTeam']} vs {MatchEntry['AwayTeam']} \n" \
+                              f"預測資訊：\n" \
+                              f"GroupOptionName = {get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])} \n" \
+                              f"GroupOptionCode = {Odds['GroupOptionCode']}\n" \
+                              f"OptionCode = {Odds['OptionCode']}\n" \
+                              f"SourceCode = {MatchEntry['SourceCode']}\n"
+                    send_JANDIMessage(message, client_ip, auth_username,'[預+賣]')
+                    return jsonify({'PredictSQL': predict_sql})
+                elif isForcast and not isSelling:
+                    if Forecast_result['OptionCode']==Odds['OptionCode']:
+                        predict_sql = f'''INSERT INTO [dbo].[PredictMatch] ([UserId],[SportCode],[EventType],[EventCode],[TournamentCode],[TournamentText],[GroupOptionCode],[GroupOptionName],[PredictTeam],[OptionCode],[SpecialBetValue],[OptionRate],[status],[gameType],[MarketType],[PredictDatetime],[CreatedTime]) VALUES('{UserId}','{MatchEntry['SportCode']}', '{'0'}','{MatchEntry['EventCode']}', '{MatchEntry['SportTournamentCode']}','{MatchEntry['TournamentText']}','{Odds['GroupOptionCode']}','{get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])}','{Mapping_PredictTeamName(Odds['OptionCode'], MatchEntry['SportCode'], Odds['GroupOptionCode'], MatchEntry['HomeTeam'], MatchEntry['AwayTeam'])}','{Odds['OptionCode']}','{Odds['SpecialBetValue']}','{Odds['OptionRate']}','{'2'}','{GameType[-1]}','{"international" if MatchEntry['SourceCode'] == "Bet365" else "sportslottery"}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}') '''
+                        db.engine.execute(predict_sql)
+                        message = f"比賽資訊：\n" \
+                                  f"EventCode = {EventCode} \n" \
+                                  f"TournamentText = {MatchEntry['TournamentText']} \n" \
+                                  f"{MatchEntry['HomeTeam']} vs {MatchEntry['AwayTeam']} \n" \
+                                  f"預測資訊：\n" \
+                                  f"GroupOptionName = {get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])} \n" \
+                                  f"GroupOptionCode = {Odds['GroupOptionCode']}\n" \
+                                  f"OptionCode = {Odds['OptionCode']}\n" \
+                                  f"SourceCode = {MatchEntry['SourceCode']}\n"
+                        send_JANDIMessage(message, client_ip, auth_username, '[預>賣]')
+                        return jsonify({'PredictSQL': predict_sql})
+                    else:
+                        return jsonify({'response': [{'Error Info': 'Forecasts and Sellings must be the same.'}]})
+                else:
+                    return jsonify({'response': [{'Error Info': 'Have repeated sellings.'}]})
+            elif predict_type == 'Forecast':
+                isForcast,Forecast_result = isPredictMacthExists(UserId,EventCode,GroupOptionCode,'Forecast')
+                if  isForcast:
+                    return jsonify({'response': [{'Error Info': 'Have repeated forecasts.'}]})
+                elif not isForcast:
+                    predict_sql = f'''INSERT INTO [dbo].[PredictMatch] ([UserId],[SportCode],[EventType],[EventCode],[TournamentCode],[TournamentText],[GroupOptionCode],[GroupOptionName],[PredictTeam],[OptionCode],[SpecialBetValue],[OptionRate],[status],[gameType],[MarketType],[PredictDatetime],[CreatedTime]) VALUES('{UserId}','{MatchEntry['SportCode']}', '{'0'}','{MatchEntry['EventCode']}', '{MatchEntry['SportTournamentCode']}','{MatchEntry['TournamentText']}','{Odds['GroupOptionCode']}','{get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])}','{Mapping_PredictTeamName(Odds['OptionCode'], MatchEntry['SportCode'], Odds['GroupOptionCode'], MatchEntry['HomeTeam'], MatchEntry['AwayTeam'])}','{Odds['OptionCode']}','{Odds['SpecialBetValue']}','{Odds['OptionRate']}','{'2'}','{GameType[0]}','{"international" if MatchEntry['SourceCode'] == "Bet365" else "sportslottery"}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}','{datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")}') '''
                     db.engine.execute(predict_sql)
-                add_userbouns(UserId)
-                message = f"比賽資訊：\n" \
-                          f"EventCode = {EventCode} \n" \
-                          f"TournamentText = {MatchEntry['TournamentText']} \n" \
-                          f"{MatchEntry['HomeTeam']} vs {MatchEntry['AwayTeam']} \n" \
-                          f"預測資訊：\n" \
-                          f"GroupOptionName = {get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])} \n" \
-                          f"GroupOptionCode = {Odds['GroupOptionCode']}\n" \
-                          f"OptionCode = {Odds['OptionCode']}\n" \
-                          f"SourceCode = {MatchEntry['SourceCode']}\n"
-                send_JANDIMessage(message, client_ip, auth_username)
-                return jsonify({'PredictSQL': predict_sql})
-            else:
-                return jsonify({'response': [{'Error Info': 'Have repeated forecasts.'}]})
+                    add_userbouns(UserId)
+                    message = f"比賽資訊：\n" \
+                              f"EventCode = {EventCode} \n" \
+                              f"TournamentText = {MatchEntry['TournamentText']} \n" \
+                              f"{MatchEntry['HomeTeam']} vs {MatchEntry['AwayTeam']} \n" \
+                              f"預測資訊：\n" \
+                              f"GroupOptionName = {get_GroupOptionName(MatchEntry['SportCode'], Odds['GroupOptionCode'])} \n" \
+                              f"GroupOptionCode = {Odds['GroupOptionCode']}\n" \
+                              f"OptionCode = {Odds['OptionCode']}\n" \
+                              f"SourceCode = {MatchEntry['SourceCode']}\n"
+                    send_JANDIMessage(message, client_ip, auth_username, '[預]')
+                    return jsonify({'PredictSQL': predict_sql})
         else:
             return jsonify({'response': [{'Error Info': 'JSON data parameter incorrect '}]})
     except Exception:
@@ -219,14 +260,14 @@ def TeamNameCorrection(Eng_TeamName):
     else:
         return ''
 
-def send_JANDIMessage(text,IP,auth_username):
+def send_JANDIMessage(text,IP,auth_username,gameType):
     webhook_url = 'https://wh.jandi.com/connect-api/webhook/25729815/70b1717ca561d9964afe8027643c4c65'
 
     jandi_data = {"body": text,
                   "connectColor": "#e31724",
                   "connectInfo": [
                       {
-                          "title": f"有員工做預測囉!!，來源IP={IP}，用戶={auth_username}"
+                          "title": f"有員工做{gameType}囉!!，來源IP={IP}，用戶={auth_username}"
                       }]
                  }
     response = requests.post(webhook_url, data=json.dumps(jandi_data),headers={'Content-type': 'application/json'})
@@ -236,24 +277,22 @@ def send_JANDIMessage(text,IP,auth_username):
             % (response.status_code, response.text)
         )
 
-def isPredictMacthExists(UserId,EventCode,GroupOptionCode):
-    sql = f'''SELECT * FROM [PredictMatch] where UserId = '{UserId}' and EventCode = '{EventCode}' and GroupOptionCode = '{GroupOptionCode}' '''
+def isPredictMacthExists(UserId,EventCode,GroupOptionCode,gametype):
+    sql = f'''SELECT * FROM [PredictMatch] where UserId = '{UserId}' and EventCode = '{EventCode}' and GroupOptionCode = '{GroupOptionCode}' and gameType = '{gametype}' '''
     results = db.engine.execute(sql).mappings().all()
     for idx in range(len(results)):
         results[idx] = dict(results[idx])  # 將 Mapping 轉型為 dict
     if len(results)>0:
-        return True
+        return True,results[0]
     else:
-        return False
+        return False,[]
 
 def add_userbouns(UserId):
     predict_num = 1
-    
-    datetime_revised = datetime.now()+timedelta(hours=8)
 
-    Modify_dd = datetime_revised.strftime("%Y-%m-%d %H:%M:%S.000")
-    start_dd = datetime_revised.replace(hour=0, minute=0,second=0,microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")
-    end_dd = datetime_revised.replace(hour=23, minute=59,second=59,microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")
+    Modify_dd = datetime.now().strftime("%Y-%m-%d %H:%M:%S.000")
+    start_dd = datetime.now().replace(hour=0, minute=0,second=0,microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")
+    end_dd = datetime.now().replace(hour=23, minute=59,second=59,microsecond=0).strftime("%Y-%m-%d %H:%M:%S.000")
 
     sql = f'''SELECT [UserId],[bonus],[Level],[start_dd],[end_dd],[Modify_dd] FROM [dbo].[UserBonus]  WHERE UserId = '{UserId}' AND start_dd = '{start_dd}' '''
     results = db.engine.execute(sql).mappings().all()
