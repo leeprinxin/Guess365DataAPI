@@ -13,7 +13,8 @@ data = {'account':'ccc',
         'password':'123123',
         'GroupOptionCode':'10',
         'OptionCode':'X',
-        'EventCode':'113172483'}
+        'EventCode':'113172483',
+        'PredictType':'Forecast'}
 
 response = requests.post(url, data = data, auth=HTTPBasicAuth('guess365', 'er3p5eak97')).text
 ```
@@ -26,6 +27,7 @@ password  | 密碼
 GroupOptionCode  | 盤口編號
 OptionCode  | 選擇方
 EventCode  | 賽事編號
+PredictType  | 預測類型('Forecast' or 'Selling')
 
 ## 其他參數
 參數  | 用途
